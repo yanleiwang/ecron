@@ -1,45 +1,65 @@
 package task
 
+import (
+	"github.com/robfig/cron/v3"
+	"time"
+)
+
+type Task struct {
+	ID       int64
+	Name     string
+	Type     Type
+	Executor string
+	Cfg      string
+	CronExp  string
+	Version  int
+	Ctime    time.Time
+	Utime    time.Time
+}
+
 type Type string
 
 const (
-	TypeHTTP = "http_task"
+	TypeLocal = "LocalTask"
+	TypeHttp  = "HttpTask"
+	TypeGrpc  = "GrpcTask"
 )
 
-type EventType string
+func (t Type) String() string {
+	return string(t)
+}
+
+var parser = cron.NewParser(
+	cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+)
+
+func (t Task) NextTime() (time.Time, error) {
+	s, err := parser.Parse(t.CronExp)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return s.Next(time.Now()), nil
+}
+
+type Execution struct {
+	ID     int64
+	Tid    int
+	Status ExecStatus
+	Ctime  time.Time
+	Utime  time.Time
+}
+
+type ExecStatus uint8
 
 const (
-	// EventTypePreempted 当前调度节点已经抢占了这个任务
-	EventTypePreempted = "preempted"
-	// EventTypeRunnable 已经到了可运行的时间点
-	// 这个时候可能还在等待别的资源
-	// 借鉴于进程调度中的概念
-	EventTypeRunnable = "runnable"
-	// EventTypeRunning 已经找到了目标节点，并且正在运行
-	EventTypeRunning = "running"
-	// EventTypeFailed 任务运行失败
-	EventTypeFailed = "failed"
-	// EventTypeSuccess 任务运行成功
-	EventTypeSuccess = "success"
-	EventTypeInit    = "init"
+	ExecStatusUnknown ExecStatus = iota
+	ExecStatusStarted
+	ExecStatusSuccess
+	ExecStatusFailed
+	ExecStatusDeadlineExceeded
+	ExecStatusCancelled
 )
 
-type Config struct {
-	Name       string
-	Cron       string
-	Type       Type
-	Parameters string
-}
-
-// Task 实际上这个表示的是任务的执行信息
-// 通过TaskId关联任务详情ßßß
-type Task struct {
-	Config
-	TaskId int64
-	Epoch  int64
-}
-
-type Event struct {
-	Task
-	Type EventType
+func (s ExecStatus) ToUint8() uint8 {
+	return uint8(s)
 }

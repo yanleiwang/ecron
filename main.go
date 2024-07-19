@@ -1,26 +1,13 @@
 package main
 
 import (
-	"context"
-	"time"
-
-	"github.com/ecodeclub/ecron/internal/scheduler"
-	"github.com/ecodeclub/ecron/internal/storage/mysql"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 func main() {
-	ctx := context.TODO()
-	storeIns, err := mysql.NewMysqlStorage("root:@tcp(localhost:3306)/ecron",
-		mysql.WithPreemptInterval(1*time.Second))
+	db, err := gorm.Open(mysql.Open("root:root@tcp(localhost:13316)/webook"))
 	if err != nil {
-		return
-	}
-	go storeIns.RunPreempt(ctx)
-	go storeIns.AutoRefresh(ctx)
-
-	sche := scheduler.NewScheduler(storeIns)
-
-	if err = sche.Start(ctx); err != nil {
 		panic(err)
 	}
 }

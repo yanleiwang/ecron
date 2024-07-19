@@ -1,22 +1,25 @@
 module github.com/ecodeclub/ecron
 
-go 1.18
+go 1.21
 
 require (
-	github.com/go-sql-driver/mysql v1.6.0
-	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
-	github.com/stretchr/testify v1.8.1
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/h2non/gock v1.2.0
+	github.com/robfig/cron/v3 v3.0.1
+	github.com/stretchr/testify v1.9.0
+	go.uber.org/mock v0.4.0
+	golang.org/x/net v0.25.0
+	golang.org/x/sync v0.6.0
+	gorm.io/driver/mysql v1.5.7
+	gorm.io/gorm v1.25.10
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/ecodeclub/ekit v0.0.4-0.20230521142951-e101f7ffe101 // indirect
-	github.com/ecodeclub/eorm v0.0.2-0.20230518143924-472250f5f4c5 // indirect
-	github.com/gotomicro/ekit v0.0.0-20230224040531-869798da3c4d // indirect
+	github.com/go-sql-driver/mysql v1.7.0 // indirect
+	github.com/h2non/parth v0.0.0-20190131123155-b4df798d6542 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.9.0 // indirect
-	golang.org/x/sync v0.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

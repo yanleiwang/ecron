@@ -1,11 +1,15 @@
 package executor
 
 import (
+	"context"
 	"github.com/ecodeclub/ecron/internal/task"
 )
 
-// Executor 执行器，它是用户任务逻辑在该系统的映射
+//go:generate mockgen -source=./types.go -package=executormocks -destination=./mocks/executor.mock.go
 type Executor interface {
-	// Execute 执行任务
-	Execute(t *task.Task) <-chan task.Event
+	// Name 执行器的名称
+	Name() string
+	// Run 执行任务
+	// ctx 整个调度器的上下文，当有ctx.Done信号时，就要考虑结束任务的执行
+	Run(ctx context.Context, t task.Task) error
 }
