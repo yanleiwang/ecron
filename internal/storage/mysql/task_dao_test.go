@@ -16,29 +16,6 @@ import (
 	"time"
 )
 
-func TestGormTaskDAO_GormReturn(t *testing.T) {
-	db, err := gorm.Open(mysql.Open("root:root@tcp(localhost:13316)/ecron"))
-	if err != nil {
-		require.NoError(t, err)
-	}
-	for i := 0; i < 3; i++ {
-		var taskInfo TaskInfo
-		taskInfo.ID = int64(i)
-		taskInfo.Status = int8(i)
-		db.Create(&taskInfo)
-	}
-	var res []TaskInfo
-	err = db.Model(&TaskInfo{}).Where("id > 0").Find(&res).Error
-	require.NoError(t, err)
-	assert.Equal(t, 3, len(res))
-
-	var taskInfos []TaskInfo
-	err = db.Model(&TaskInfo{}).Where("id > 10").Find(&taskInfos).Error
-	assert.NoError(t, err)
-	// 没有符合查询条件的数据时，不会返回 err
-	assert.Equal(t, 0, len(taskInfos))
-}
-
 func TestGormTaskDAO_Preempt(t *testing.T) {
 	testCases := []struct {
 		name            string

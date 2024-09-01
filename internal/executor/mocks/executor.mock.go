@@ -12,7 +12,9 @@ package executormocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
+	executor "github.com/ecodeclub/ecron/internal/executor"
 	task "github.com/ecodeclub/ecron/internal/task"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -40,6 +42,34 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 	return m.recorder
 }
 
+// Explore mocks base method.
+func (m *MockExecutor) Explore(ctx context.Context, eid int64, t task.Task) <-chan executor.Result {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Explore", ctx, eid, t)
+	ret0, _ := ret[0].(<-chan executor.Result)
+	return ret0
+}
+
+// Explore indicates an expected call of Explore.
+func (mr *MockExecutorMockRecorder) Explore(ctx, eid, t any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Explore", reflect.TypeOf((*MockExecutor)(nil).Explore), ctx, eid, t)
+}
+
+// MaxTaskTimeout mocks base method.
+func (m *MockExecutor) TaskTimeout(t task.Task) time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TaskTimeout", t)
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// MaxTaskTimeout indicates an expected call of MaxTaskTimeout.
+func (mr *MockExecutorMockRecorder) MaxTaskTimeout(t any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaskTimeout", reflect.TypeOf((*MockExecutor)(nil).TaskTimeout), t)
+}
+
 // Name mocks base method.
 func (m *MockExecutor) Name() string {
 	m.ctrl.T.Helper()
@@ -55,15 +85,16 @@ func (mr *MockExecutorMockRecorder) Name() *gomock.Call {
 }
 
 // Run mocks base method.
-func (m *MockExecutor) Run(ctx context.Context, t task.Task) error {
+func (m *MockExecutor) Run(ctx context.Context, t task.Task, eid int64) (task.ExecStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", ctx, t)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "Run", ctx, t, eid)
+	ret0, _ := ret[0].(task.ExecStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Run indicates an expected call of Run.
-func (mr *MockExecutorMockRecorder) Run(ctx, t any) *gomock.Call {
+func (mr *MockExecutorMockRecorder) Run(ctx, t, eid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockExecutor)(nil).Run), ctx, t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockExecutor)(nil).Run), ctx, t, eid)
 }

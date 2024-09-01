@@ -23,5 +23,6 @@ type TaskDAO interface {
 
 // ExecutionDAO 任务执行情况
 type ExecutionDAO interface {
-	InsertExecStatus(ctx context.Context, id int64, status task.ExecStatus) error
+	// Upsert 记录任务执行状态和进度
+	Upsert(ctx context.Context, id int64, status task.ExecStatus, progress uint8) (int64, error)
 }

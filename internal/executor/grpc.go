@@ -2,8 +2,8 @@ package executor
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/ecodeclub/ecron/internal/task"
+	"time"
 )
 
 type GrpcExecutor struct {
@@ -17,13 +17,18 @@ func (g *GrpcExecutor) Name() string {
 	return "GRPC"
 }
 
-func (g *GrpcExecutor) Run(ctx context.Context, t task.Task) error {
-	var req GrpcCfg
-	err := json.Unmarshal([]byte(t.Cfg), &req)
-	if err != nil {
-		return err
-	}
-	// TODO: 解决 grpc 泛化调用
+func (g *GrpcExecutor) Run(ctx context.Context, t task.Task, eid int64) (task.ExecStatus, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (g *GrpcExecutor) Explore(ctx context.Context, eid int64, t task.Task) <-chan Result {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (g *GrpcExecutor) TaskTimeout(t task.Task) time.Duration {
+	//TODO implement me
 	panic("implement me")
 }
 

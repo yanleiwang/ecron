@@ -42,18 +42,19 @@ func (t Task) NextTime() (time.Time, error) {
 }
 
 type Execution struct {
-	ID     int64
-	Tid    int
-	Status ExecStatus
-	Ctime  time.Time
-	Utime  time.Time
+	ID       int64
+	Tid      int
+	Status   ExecStatus
+	Progress uint8
+	Ctime    time.Time
+	Utime    time.Time
 }
 
 type ExecStatus uint8
 
 const (
 	ExecStatusUnknown ExecStatus = iota
-	ExecStatusStarted
+	ExecStatusRunning
 	ExecStatusSuccess
 	ExecStatusFailed
 	ExecStatusDeadlineExceeded
@@ -62,4 +63,22 @@ const (
 
 func (s ExecStatus) ToUint8() uint8 {
 	return uint8(s)
+}
+
+func (s ExecStatus) String() string {
+	switch s {
+	case ExecStatusRunning:
+		return "running"
+	case ExecStatusSuccess:
+		return "success"
+	case ExecStatusFailed:
+		return "failed"
+	case ExecStatusDeadlineExceeded:
+		return "deadline_exceeded"
+	case ExecStatusCancelled:
+		return "cancelled"
+	default:
+		return "unknown"
+
+	}
 }

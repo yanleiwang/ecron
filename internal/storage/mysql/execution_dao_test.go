@@ -12,13 +12,14 @@ import (
 	"testing"
 )
 
-func TestGormExecutionDAO_InsertExecStatus(t *testing.T) {
+func TestGormExecutionDAO_Upsert(t *testing.T) {
 	testCase := []struct {
 		name       string
 		sqlMock    func(t *testing.T) *sql.DB
 		id         int64
 		taskStatus task.ExecStatus
 		wantErr    error
+		wantID     int64
 	}{
 		{
 			name: "启动任务，insert一条记录",
@@ -30,8 +31,9 @@ func TestGormExecutionDAO_InsertExecStatus(t *testing.T) {
 				return mockDB
 			},
 			id:         1,
-			taskStatus: task.ExecStatusStarted,
+			taskStatus: task.ExecStatusRunning,
 			wantErr:    nil,
+			wantID:     1,
 		},
 		{
 			name: "任务执行成功，更新执行记录",
@@ -39,12 +41,13 @@ func TestGormExecutionDAO_InsertExecStatus(t *testing.T) {
 				mockDB, mock, err := sqlmock.New()
 				require.NoError(t, err)
 				mock.ExpectExec("INSERT INTO `execution` .* ON DUPLICATE KEY UPDATE").
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnResult(sqlmock.NewResult(2, 1))
 				return mockDB
 			},
 			id:         1,
 			taskStatus: task.ExecStatusSuccess,
 			wantErr:    nil,
+			wantID:     2,
 		},
 	}
 	for _, tc := range testCase {
@@ -59,8 +62,9 @@ func TestGormExecutionDAO_InsertExecStatus(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dao := NewGormExecutionDAO(db)
-			err = dao.InsertExecStatus(context.Background(), tc.id, tc.taskStatus)
+			id, err := dao.Upsert(context.Background(), tc.id, tc.taskStatus, 0)
 			assert.Equal(t, tc.wantErr, err)
+			assert.Equal(t, tc.wantID, id)
 		})
 	}
 }

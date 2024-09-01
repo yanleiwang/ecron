@@ -16,17 +16,21 @@ func NewGormExecutionDAO(db *gorm.DB) *GormExecutionDAO {
 	return &GormExecutionDAO{db: db}
 }
 
-func (h *GormExecutionDAO) InsertExecStatus(ctx context.Context, id int64, status task.ExecStatus) error {
+func (h *GormExecutionDAO) Upsert(ctx context.Context, id int64, status task.ExecStatus, progress uint8) (int64, error) {
 	now := time.Now().UnixMilli()
-	return h.db.WithContext(ctx).Clauses(clause.OnConflict{
+	exec := Execution{
+		Tid:      id,
+		Status:   status.ToUint8(),
+		Progress: progress,
+		Ctime:    now,
+		Utime:    now,
+	}
+	err := h.db.WithContext(ctx).Clauses(clause.OnConflict{
 		DoUpdates: clause.Assignments(map[string]any{
-			"status": status.ToUint8(),
-			"utime":  now,
+			"status":   status.ToUint8(),
+			"progress": progress,
+			"utime":    now,
 		}),
-	}).Create(&Execution{
-		Tid:    id,
-		Status: status.ToUint8(),
-		Ctime:  now,
-		Utime:  now,
-	}).Error
+	}).Create(&exec).Error
+	return exec.ID, err
 }
