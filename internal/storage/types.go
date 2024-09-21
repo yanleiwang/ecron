@@ -21,4 +21,7 @@ type TaskCfgRepository interface {
 type ExecutionDAO interface {
 	// Upsert 记录任务执行状态和进度
 	Upsert(ctx context.Context, id int64, status task.ExecStatus, progress uint8) (int64, error)
+	GetLastExecution(ctx context.Context, tid int64) (task.Execution, error)
+	Create(ctx context.Context, tid int64) (task.Execution, error)
+	Update(ctx context.Context, eid int64, status task.ExecStatus, progress int) error
 }

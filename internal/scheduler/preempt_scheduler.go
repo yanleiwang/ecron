@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"github.com/ecodeclub/ecron/internal/errs"
 	"github.com/ecodeclub/ecron/internal/executor"
 	"github.com/ecodeclub/ecron/internal/preempt"
 	"github.com/ecodeclub/ecron/internal/storage"
@@ -72,12 +73,19 @@ func (p *PreemptScheduler) Schedule(ctx context.Context) error {
 				slog.Int64("TaskID", t.ID),
 				slog.String("Executor", t.Executor))
 			p.limiter.Release(1)
-			err1 := leaser.Release(ctx)
-			if err1 != nil {
+			timeout, cancel := context.WithTimeout(ctx, time.Second*3)
+			err = leaser.Release(ctx)
+			if err != nil {
+				cancel()
 				p.logger.Error("于抢占后释放任务失败",
 					slog.Int64("TaskID", t.ID),
-					slog.Any("err1", err1))
+					slog.Any("err", err))
+				continue
 			}
+
+			// 找不到执行器 感觉也应该 updateNextTime?
+			_ = p.updateNextTime(timeout, t, time.Now())
+			cancel()
 			continue
 		}
 
@@ -86,131 +94,210 @@ func (p *PreemptScheduler) Schedule(ctx context.Context) error {
 }
 
 func (p *PreemptScheduler) doTaskWithAutoRefresh(ctx context.Context, l preempt.TaskLeaser, exec executor.Executor) {
-
-	cancelCtx, cancelCause := context.WithCancelCause(ctx)
 	t := l.GetTask()
-	defer func() {
-		ctx1, cancel := context.WithTimeout(ctx, time.Second*3)
-		defer cancel()
 
-		err := l.Release(ctx1)
+	defer func() {
+		err := p.ReleaseTask(l, t, exec)
 		if err != nil {
-			p.logger.Error("停止任务异常", slog.Int64("task_id", t.ID), slog.Any("error", err))
+			p.logger.Error("任务释放失败", slog.Int64("task_id", t.ID),
+				slog.Any("err", err))
 		}
+
 	}()
 
-	go func() {
-		ch, err := l.AutoRefresh(cancelCtx)
-		if err != nil {
-			cancelCause(err)
-			return
-		}
+	cancelCtx, cancelCause := context.WithCancelCause(ctx)
+	ch, err := l.AutoRefresh(cancelCtx)
+	defer cancelCause(nil)
 
+	if err != nil {
+		cancelCause(err)
+		return
+	}
+
+	go func() {
 		for {
 			s, ok := <-ch
 			if ok && s.Err() != nil {
-				p.logger.Error(s.Err().Error(), slog.Int64("TaskID", t.ID))
 				cancelCause(s.Err())
 				return
 			}
 		}
 	}()
 
-	p.doTask(ctx, t, exec)
-}
-
-func (p *PreemptScheduler) doTask(ctx context.Context, t task.Task, exec executor.Executor) {
-	defer p.limiter.Release(1)
-	//defer p.releaseTask(t)
-
-	// 任务执行超时配置
 	timeout := exec.TaskTimeout(t)
-
-	eid, err := p.updateProgressStatus(t.ID, 0, task.ExecStatusRunning)
-	if err != nil {
-		// 这里我直接返回，如果只是网络抖动，那么任务释放后，不修改下一次执行时间，该任务可以立刻再次被抢占执行。
-		// 如果是数据库异常，则无法记录任务执行情况，那么放弃这一次执行。
-		return
-	}
-	// 控制任务执行时长
-	execCtx, execCancel := context.WithDeadline(ctx, time.Now().Add(timeout))
+	execCtx, execCancel := context.WithTimeout(cancelCtx, timeout)
 	defer execCancel()
 
-	status, _ := exec.Run(execCtx, t, eid)
-	defer p.setNextTime(t)
+	// 如果任务的上次执行状态是 Running 说明上次调度是非正常中断
+	// 本次 调度 只会 尝试去 获取 上次任务的执行结果, 而不真正执行 任务
+	if t.LastStatus == task.TaskStatusRunning {
+		lastExecution, err, done := p.getLastExecution(execCtx, t)
+		if done {
+			return
+		}
+		t.CurExecution = &lastExecution
+		// 探查任务的执行情况
+		err = p.exploreLastExecution(execCtx, t, exec)
+		if err != nil {
+			p.logger.Error("探查最近一次任务执行记录失败", slog.Int64("task_id", t.ID),
+				slog.Int64("eid", t.CurExecution.ID), slog.Any("err", err))
+		}
+		return
+	}
 
-	err = p.reportExecuteResult(status, t.ID)
+	execution, err := p.executionDAO.Create(execCtx, t.ID)
 	if err != nil {
-		p.logger.Error("上报执行结果失败", slog.Int64("task_id", t.ID),
-			slog.String("exec_status", status.String()), slog.Any("error", err))
+		return
 	}
 
-	if status == task.ExecStatusRunning {
-		p.explore(execCtx, exec, eid, t)
+	t.CurExecution = &execution
+
+	err = p.doTask(execCtx, t, exec)
+
+	if err != nil {
+		p.logger.Error("任务执行失败", slog.Int64("task_id", t.ID),
+			slog.Int64("eid", t.CurExecution.ID), slog.Any("err", err))
 	}
+
 }
 
-func (p *PreemptScheduler) reportExecuteResult(status task.ExecStatus, id int64) error {
-	var err error
-	switch status {
-	case task.ExecStatusSuccess:
-		_, err = p.updateProgressStatus(id, 100, task.ExecStatusSuccess)
-	case task.ExecStatusDeadlineExceeded:
-		_, err = p.updateProgressStatus(id, 0, task.ExecStatusDeadlineExceeded)
-	case task.ExecStatusCancelled:
-		_, err = p.updateProgressStatus(id, 0, task.ExecStatusCancelled)
-	case task.ExecStatusRunning:
-		_, err = p.updateProgressStatus(id, 0, task.ExecStatusRunning)
-	default:
-		_, _ = p.updateProgressStatus(id, 0, task.ExecStatusFailed)
+func (p *PreemptScheduler) getLastExecution(execCtx context.Context, t task.Task) (task.Execution, error, bool) {
+	// 先获取任务最近的一次执行记录
+	lastExecution, err := p.executionDAO.GetLastExecution(execCtx, t.ID)
+	if err != nil {
+		return task.Execution{}, err, true
 	}
-	return err
+	// 执行记录 显示 执行 已经结束了， 说明 只是release失败
+	if lastExecution.Status != task.ExecStatusRunning {
+		// 重新计算下 nextTime, err了 也无所谓
+		_ = p.updateNextTime(execCtx, t, lastExecution.Utime)
+		return task.Execution{}, nil, true
+	}
+	return lastExecution, nil, false
 }
 
-func (p *PreemptScheduler) explore(ctx context.Context, exec executor.Executor, eid int64, t task.Task) {
+func (p *PreemptScheduler) ReleaseTask(l preempt.TaskLeaser, t task.Task, exec executor.Executor) error {
+	p.limiter.Release(1)
+	nctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	err := l.Release(nctx)
+	if err != nil {
+		return err
+	}
+	if t.CurExecution == nil {
+		return nil
+	}
+	err = p.updateProgressStatus(nctx, t.CurExecution.ID, int(t.CurExecution.Progress), t.CurExecution.Status)
+	if err != nil {
+		return err
+	}
+	err = p.updateNextTime(nctx, t, time.Now())
+	if err != nil {
+		return err
+	}
+
+	if t.CurExecution.Status != task.ExecStatusDeadlineExceeded && t.CurExecution.Status != task.ExecStatusCancelled {
+		return nil
+	}
+
+	return exec.Stop(nctx, t, t.CurExecution.ID)
+
+}
+
+func (p *PreemptScheduler) doTask(ctx context.Context, t task.Task, exec executor.Executor) error {
+	status, err := exec.Run(ctx, t, t.CurExecution.ID)
+	t.CurExecution.Status = status
+	if status == task.ExecStatusSuccess {
+		t.CurExecution.Progress = 100
+	}
+	if err != nil || status != task.ExecStatusRunning {
+		return err
+	}
+
+	return p.explore(ctx, exec, t)
+
+}
+
+func (p *PreemptScheduler) exploreLastExecution(ctx context.Context, t task.Task, exec executor.Executor) error {
+	err := p.exploreOnce(ctx, exec, t)
+	if err != nil {
+		return err
+	}
+
+	if t.CurExecution.Status != task.ExecStatusRunning {
+		return nil
+	}
+	//  调整 执行超时时间 = 任务记录 创建时间 + 最大执行时间
+	expectStopTime := t.CurExecution.Ctime.Add(exec.TaskTimeout(t))
+	nctx, cancel := context.WithDeadline(ctx, expectStopTime)
+	defer cancel()
+
+	//继续 探查
+	return p.explore(nctx, exec, t)
+
+}
+
+func (p *PreemptScheduler) exploreOnce(ctx context.Context, exec executor.Executor, t task.Task) error {
+	nctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eid := t.CurExecution.ID
+	ch := exec.Explore(nctx, eid, t)
+	if ch == nil {
+		t.CurExecution.Status = task.ExecStatusUnknown
+		return errs.ErrTaskNotSupportExplore
+	}
+
+	select {
+	case <-ctx.Done():
+		t.CurExecution.Status = task.ExecStatusUnknown
+		return ctx.Err()
+	case res := <-ch:
+		t.CurExecution.Status = p.from(res.Status)
+		return nil
+	}
+
+}
+
+func (p *PreemptScheduler) explore(ctx context.Context, exec executor.Executor, t task.Task) error {
+	eid := t.CurExecution.ID
 	ch := exec.Explore(ctx, eid, t)
 	if ch == nil {
-		return
+		t.CurExecution.Status = task.ExecStatusUnknown
+		return errs.ErrTaskNotSupportExplore
 	}
 	// 保存每一次探查时的进度，确保执行ctx.Done()分支时进度不会更新为零值
 	progress := 0
+	status := task.ExecStatusUnknown
 	for {
 		select {
 		case <-ctx.Done():
-			var status string
 			// 主动取消或者超时
 			err := ctx.Err()
 			if errors.Is(err, context.DeadlineExceeded) {
-				_, err = p.updateProgressStatus(t.ID, progress, task.ExecStatusDeadlineExceeded)
-				status = task.ExecStatusDeadlineExceeded.String()
+				status = task.ExecStatusDeadlineExceeded
 			} else {
-				_, err = p.updateProgressStatus(t.ID, progress, task.ExecStatusCancelled)
-				status = task.ExecStatusCancelled.String()
+				status = task.ExecStatusCancelled
 			}
-
-			if err != nil {
-				p.logger.Error("更新最终执行结果失败", slog.Int64("task_id", t.ID),
-					slog.String("exec_status", status), slog.Int("progress", progress),
-					slog.Any("error", err))
-			}
-			return
 		case res, ok := <-ch:
 			if !ok {
-				return
+				select {
+				case <-ctx.Done():
+					continue
+				default:
+					status = task.ExecStatusUnknown
+				}
+			} else {
+				progress = res.Progress
+				status = p.from(res.Status)
 			}
 
-			progress = res.Progress
-			status := p.from(res.Status)
-			_, err := p.updateProgressStatus(t.ID, progress, status)
-			if err != nil {
-				p.logger.Error("上报探查结果失败", slog.Int64("task_id", t.ID),
-					slog.String("exec_status", status.String()), slog.Int("progress", progress),
-					slog.Any("error", err))
-			}
+		}
 
-			if status != task.ExecStatusRunning {
-				return
-			}
+		t.CurExecution.Status = status
+		t.CurExecution.Progress = uint8(progress)
+		err := p.updateProgressStatus(ctx, eid, progress, status)
+		if err != nil || status != task.ExecStatusRunning {
+			return err
 		}
 	}
 }
@@ -226,22 +313,23 @@ func (p *PreemptScheduler) from(status executor.Status) task.ExecStatus {
 	}
 }
 
-func (p *PreemptScheduler) setNextTime(t task.Task) {
-	next, err := t.NextTime()
+func (p *PreemptScheduler) updateNextTime(ctx context.Context, t task.Task, time2 time.Time) error {
+	next, err := t.NextTime(time2)
 	if err != nil {
 		p.logger.Error("计算任务下一次执行时间失败",
 			slog.Int64("TaskID", t.ID),
 			slog.Any("error", err))
+		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
+
 	if next.IsZero() {
-		err := p.taskCfgRepository.Stop(ctx, t.ID)
+		err = p.taskCfgRepository.Stop(ctx, t.ID)
 		if err != nil {
 			p.logger.Error("停止任务调度失败",
 				slog.Int64("TaskID", t.ID),
 				slog.Any("error", err))
 		}
+		return err
 	}
 	err = p.taskCfgRepository.UpdateNextTime(ctx, t.ID, next)
 	if err != nil {
@@ -249,11 +337,15 @@ func (p *PreemptScheduler) setNextTime(t task.Task) {
 			slog.Int64("TaskID", t.ID),
 			slog.Any("error", err))
 	}
+	return err
 }
 
-func (p *PreemptScheduler) updateProgressStatus(tid int64, progress int, status task.ExecStatus) (int64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-	eid, err := p.executionDAO.Upsert(ctx, tid, status, uint8(progress))
-	return eid, err
+func (p *PreemptScheduler) updateProgressStatus(ctx context.Context, eid int64, progress int, status task.ExecStatus) error {
+	err := p.executionDAO.Update(ctx, eid, status, progress)
+	if err != nil {
+		p.logger.Error("更新任务记录失败", slog.Int64("execution_id", eid),
+			slog.String("exec_status", status.String()), slog.Int("progress", progress),
+			slog.Any("error", err))
+	}
+	return err
 }

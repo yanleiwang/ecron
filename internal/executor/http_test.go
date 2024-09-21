@@ -129,8 +129,7 @@ func TestHttpExecutor_Run(t *testing.T) {
 				MatchHeader("execution_id", "1").
 				Reply(tc.statusCode).JSON(tc.respBody).SetError(tc.respErr)
 
-			logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-			exec := NewHttpExecutor(logger)
+			exec := newHttpExecutor()
 			status, err := exec.Run(context.Background(), tc.inTask, 1)
 			assert.Equal(t, tc.wantErr, err)
 			assert.Equal(t, tc.wantTaskStatus, status)
@@ -277,8 +276,7 @@ func TestHttpExecutor_Explore(t *testing.T) {
 				MatchHeader("execution_id", "1").
 				Reply(tc.statusCode).JSON(tc.respBody).SetError(tc.respErr)
 
-			logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-			exec := NewHttpExecutor(logger)
+			exec := newHttpExecutor()
 			exec.maxFailCount = tc.maxFailCount
 			ch := exec.Explore(context.Background(), 1, tc.inTask)
 
@@ -291,4 +289,15 @@ func TestHttpExecutor_Explore(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newHttpExecutor() *HttpExecutor {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	client := &http.Client{
+		// http调用超时配置
+		Timeout: time.Second * 5,
+	}
+
+	exec := NewHttpExecutor(logger, client, 5)
+	return exec
 }

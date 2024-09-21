@@ -6,15 +6,17 @@ import (
 )
 
 type Task struct {
-	ID       int64
-	Name     string
-	Type     Type
-	Executor string
-	Cfg      string
-	CronExp  string
-	Owner    string
-	Ctime    time.Time
-	Utime    time.Time
+	ID           int64
+	Name         string
+	Type         Type
+	Executor     string
+	Cfg          string
+	CronExp      string
+	Owner        string
+	LastStatus   int8
+	CurExecution *Execution
+	Ctime        time.Time
+	Utime        time.Time
 }
 
 type Type string
@@ -33,17 +35,17 @@ var parser = cron.NewParser(
 	cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 )
 
-func (t Task) NextTime() (time.Time, error) {
+func (t Task) NextTime(time2 time.Time) (time.Time, error) {
 	s, err := parser.Parse(t.CronExp)
 	if err != nil {
 		return time.Time{}, err
 	}
-	return s.Next(time.Now()), nil
+	return s.Next(time2), nil
 }
 
 type Execution struct {
 	ID       int64
-	Tid      int
+	Tid      int64
 	Status   ExecStatus
 	Progress uint8
 	Ctime    time.Time
@@ -82,3 +84,10 @@ func (s ExecStatus) String() string {
 
 	}
 }
+
+const (
+	TaskStatusWaiting  = int8(1) // 等待调度
+	TaskStatusRunning  = int8(2) // 正在执行
+	TaskStatusPaused   = int8(3) // 任务中断
+	TaskStatusFinished = int8(4) // 任务结束
+)

@@ -1,6 +1,6 @@
 create database if not exists `ecron`;
 
-USE ecron
+USE ecron;
 
 create table if not EXISTS `task_info`
 (
@@ -14,9 +14,10 @@ create table if not EXISTS `task_info`
     cfg               text          not null comment '执行配置',
     next_exec_time    bigint comment '下一次执行时间',
     ctime       bigint        not null,
-    utime      bigint        not null
-    )
-    comment '任务信息';
+    utime      bigint        not null,
+    INDEX idx_status_next_exec_time(status, next_exec_time),
+    INDEX idx_status_utime(status, utime)
+) comment '任务信息';
 
 create table if not EXISTS `execution`
 (
@@ -29,4 +30,3 @@ create table if not EXISTS `execution`
     )
     comment '任务执行情况';
 
-CREATE UNIQUE INDEX idx_tid ON `execution` (`tid`);

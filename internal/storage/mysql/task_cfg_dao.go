@@ -20,7 +20,7 @@ func NewGormTaskCfgRepository(db *gorm.DB) *GormTaskCfgRepository {
 func (g *GormTaskCfgRepository) Add(ctx context.Context, t task.Task) error {
 	te := toEntity(t)
 	now := time.Now().UnixMilli()
-	te.Status = TaskStatusWaiting
+	te.Status = task.TaskStatusWaiting
 	te.Ctime = now
 	te.Utime = now
 	return g.db.WithContext(ctx).Create(&te).Error
@@ -29,7 +29,7 @@ func (g *GormTaskCfgRepository) Add(ctx context.Context, t task.Task) error {
 func (g *GormTaskCfgRepository) Stop(ctx context.Context, id int64) error {
 	return g.db.WithContext(ctx).Model(&TaskInfo{}).
 		Where("id = ?", id).Updates(map[string]any{
-		"status": TaskStatusFinished,
+		"status": task.TaskStatusFinished,
 		"utime":  time.Now().UnixMilli(),
 	}).Error
 }

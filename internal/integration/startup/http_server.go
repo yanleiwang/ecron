@@ -8,10 +8,13 @@ import (
 	"time"
 )
 
+// fixme 为了 能够并发的测试, 在每个测试用例结束后 把count 清0
+var Srv *HttpServer
+
 func StartHttpServer(port string) {
 	server := gin.Default()
-	h := new(HttpServer)
-	h.RegisterRouter(server)
+	Srv = new(HttpServer)
+	Srv.RegisterRouter(server)
 	err := server.Run(":" + port)
 	if err != nil {
 		panic(err)
@@ -21,7 +24,7 @@ func StartHttpServer(port string) {
 // HttpServer 模拟业务方的返回
 type HttpServer struct {
 	// 记录当前是第几个请求
-	count int
+	Count int
 }
 
 func (u *HttpServer) RegisterRouter(server *gin.Engine) {
@@ -51,24 +54,24 @@ func (u *HttpServer) Success(ctx *gin.Context) {
 func (u *HttpServer) ExploreSuccess(ctx *gin.Context) {
 	param := ctx.GetHeader("execution_id")
 	id, _ := strconv.ParseInt(param, 10, 64)
-	if u.count == 0 {
+	if u.Count == 0 {
 		// 发起调用
 		ctx.JSON(200, executor.Result{
 			Eid:      id,
 			Status:   executor.StatusRunning,
 			Progress: 10,
 		})
-		u.count++
+		u.Count++
 		return
 	}
 	// 探查
-	if u.count == 1 {
+	if u.Count == 1 {
 		ctx.JSON(200, executor.Result{
 			Eid:      id,
 			Status:   executor.StatusRunning,
 			Progress: 50,
 		})
-		u.count++
+		u.Count++
 		return
 	} else {
 		ctx.JSON(200, executor.Result{
@@ -82,21 +85,21 @@ func (u *HttpServer) ExploreSuccess(ctx *gin.Context) {
 func (u *HttpServer) ExploreFailed(ctx *gin.Context) {
 	param := ctx.GetHeader("execution_id")
 	id, _ := strconv.ParseInt(param, 10, 64)
-	if u.count == 0 {
+	if u.Count == 0 {
 		ctx.JSON(200, executor.Result{
 			Eid:      id,
 			Status:   executor.StatusRunning,
 			Progress: 10,
 		})
-		u.count++
+		u.Count++
 		return
-	} else if u.count == 1 {
+	} else if u.Count == 1 {
 		ctx.JSON(200, executor.Result{
 			Eid:      id,
 			Status:   executor.StatusRunning,
 			Progress: 50,
 		})
-		u.count++
+		u.Count++
 		return
 	} else {
 		ctx.JSON(200, executor.Result{

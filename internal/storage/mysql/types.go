@@ -40,29 +40,23 @@ func toEntity(t task.Task) TaskInfo {
 
 func toTask(t TaskInfo) task.Task {
 	return task.Task{
-		ID:       t.ID,
-		Name:     t.Name,
-		Type:     task.Type(t.Type),
-		Executor: t.Executor,
-		Cfg:      t.Cfg,
-		CronExp:  t.Cron,
-		Ctime:    time.UnixMilli(t.Ctime),
-		Utime:    time.UnixMilli(t.Utime),
-		Owner:    t.Owner,
+		ID:         t.ID,
+		Name:       t.Name,
+		Type:       task.Type(t.Type),
+		Executor:   t.Executor,
+		Cfg:        t.Cfg,
+		CronExp:    t.Cron,
+		Ctime:      time.UnixMilli(t.Ctime),
+		Utime:      time.UnixMilli(t.Utime),
+		LastStatus: t.Status,
+		Owner:      t.Owner,
 	}
 }
-
-const (
-	TaskStatusWaiting  = int8(1) // 等待调度
-	TaskStatusRunning  = int8(2) // 正在执行
-	TaskStatusPaused   = int8(3) // 任务中断
-	TaskStatusFinished = int8(4) // 任务结束
-)
 
 // Execution 任务执行记录
 type Execution struct {
 	ID  int64 `gorm:"primary_key;auto_increment"`
-	Tid int64 `gorm:"uniqueIndex:idx_tid"`
+	Tid int64
 	// 任务执行进度
 	Progress uint8
 	Status   uint8

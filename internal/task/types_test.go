@@ -36,7 +36,7 @@ func TestTask_NextTime(t *testing.T) {
 			task := Task{
 				CronExp: tc.cronExp,
 			}
-			res, err := task.NextTime()
+			res, err := task.NextTime(time.Now())
 			if err != nil {
 				assert.True(t, strings.Contains(err.Error(), tc.wantErr.Error()))
 				return

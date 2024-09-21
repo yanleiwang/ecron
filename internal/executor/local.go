@@ -10,9 +10,15 @@ import (
 	"time"
 )
 
+var _ Executor = (*LocalExecutor)(nil)
+
 type LocalExecutor struct {
 	logger *slog.Logger
 	fn     map[string]func(ctx context.Context, t task.Task) error
+}
+
+func (l *LocalExecutor) Stop(ctx context.Context, t task.Task, eid int64) error {
+	return nil
 }
 
 func NewLocalExecutor(logger *slog.Logger) *LocalExecutor {

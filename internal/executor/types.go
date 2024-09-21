@@ -24,6 +24,9 @@ type Executor interface {
 	// TaskTimeout 返回任务的最大执行时间。当任务执行时长超过这个时间后，调度器会立刻取消执行任务。
 	// 如果任务没有配置，实现可以设置一个默认值。
 	TaskTimeout(t task.Task) time.Duration
+
+	// Stop 取消任务执行
+	Stop(ctx context.Context, t task.Task, eid int64) error
 }
 
 // Result 业务方返回的结果

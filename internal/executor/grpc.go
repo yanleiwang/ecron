@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+var _ Executor = (*GrpcExecutor)(nil)
+
 type GrpcExecutor struct {
 }
 
@@ -28,6 +30,11 @@ func (g *GrpcExecutor) Explore(ctx context.Context, eid int64, t task.Task) <-ch
 }
 
 func (g *GrpcExecutor) TaskTimeout(t task.Task) time.Duration {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (g *GrpcExecutor) Stop(ctx context.Context, t task.Task, eid int64) error {
 	//TODO implement me
 	panic("implement me")
 }

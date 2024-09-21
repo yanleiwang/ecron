@@ -56,20 +56,6 @@ func (mr *MockExecutorMockRecorder) Explore(ctx, eid, t any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Explore", reflect.TypeOf((*MockExecutor)(nil).Explore), ctx, eid, t)
 }
 
-// MaxTaskTimeout mocks base method.
-func (m *MockExecutor) TaskTimeout(t task.Task) time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TaskTimeout", t)
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// MaxTaskTimeout indicates an expected call of MaxTaskTimeout.
-func (mr *MockExecutorMockRecorder) MaxTaskTimeout(t any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaskTimeout", reflect.TypeOf((*MockExecutor)(nil).TaskTimeout), t)
-}
-
 // Name mocks base method.
 func (m *MockExecutor) Name() string {
 	m.ctrl.T.Helper()
@@ -97,4 +83,32 @@ func (m *MockExecutor) Run(ctx context.Context, t task.Task, eid int64) (task.Ex
 func (mr *MockExecutorMockRecorder) Run(ctx, t, eid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockExecutor)(nil).Run), ctx, t, eid)
+}
+
+// Stop mocks base method.
+func (m *MockExecutor) Stop(ctx context.Context, t task.Task, eid int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stop", ctx, t, eid)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockExecutorMockRecorder) Stop(ctx, t, eid any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockExecutor)(nil).Stop), ctx, t, eid)
+}
+
+// TaskTimeout mocks base method.
+func (m *MockExecutor) TaskTimeout(t task.Task) time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TaskTimeout", t)
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// TaskTimeout indicates an expected call of TaskTimeout.
+func (mr *MockExecutorMockRecorder) TaskTimeout(t any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaskTimeout", reflect.TypeOf((*MockExecutor)(nil).TaskTimeout), t)
 }

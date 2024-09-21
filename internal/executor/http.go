@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+var _ Executor = (*HttpExecutor)(nil)
+
 type HttpExecutor struct {
 	logger *slog.Logger
 	client *http.Client
@@ -21,15 +23,8 @@ type HttpExecutor struct {
 	maxFailCount int
 }
 
-func NewHttpExecutor(logger *slog.Logger) *HttpExecutor {
-	return &HttpExecutor{
-		client: &http.Client{
-			// http调用超时配置
-			Timeout: time.Second * 5,
-		},
-		logger:       logger,
-		maxFailCount: 5,
-	}
+func NewHttpExecutor(logger *slog.Logger, client *http.Client, maxFailCount int) *HttpExecutor {
+	return &HttpExecutor{logger: logger, client: client, maxFailCount: maxFailCount}
 }
 
 func (h *HttpExecutor) Name() string {
@@ -44,7 +39,7 @@ func (h *HttpExecutor) Run(ctx context.Context, t task.Task, eid int64) (task.Ex
 		return task.ExecStatusFailed, errs.ErrInCorrectConfig
 	}
 
-	result, err := h.request(http.MethodPost, cfg, eid)
+	result, err := h.request(ctx, http.MethodPost, cfg, eid)
 	if errors.Is(err, errs.ErrRequestTimeout) {
 		h.logger.Error("发起任务请求超时",
 			slog.Int64("execution_id", eid))
@@ -78,19 +73,20 @@ func (h *HttpExecutor) explore(ctx context.Context, ch chan Result, t task.Task,
 	failCount := 0
 	cfg, _ := h.parseCfg(t.Cfg)
 	ticker := time.NewTicker(cfg.ExploreInterval)
+	defer ticker.Stop()
 
 	for failCount < h.maxFailCount {
 		select {
 		case <-ctx.Done():
-			// 通知业务方取消任务执行
-			h.cancelExec(cfg, eid)
 			return
 		case <-ticker.C:
-			result, err := h.request(http.MethodGet, cfg, eid)
+			result, err := h.request(ctx, http.MethodGet, cfg, eid)
 			if err != nil {
 				failCount++
 				continue
 			}
+
+			failCount = 0
 			ch <- result
 			if result.Status != StatusRunning {
 				return
@@ -119,16 +115,23 @@ func (h *HttpExecutor) parseCfg(cfg string) (HttpCfg, error) {
 	return result, err
 }
 
-func (h *HttpExecutor) cancelExec(cfg HttpCfg, eid int64) {
-	_, err := h.request(http.MethodDelete, cfg, eid)
+func (h *HttpExecutor) Stop(ctx context.Context, t task.Task, eid int64) error {
+	cfg, err := h.parseCfg(t.Cfg)
 	if err != nil {
-		h.logger.Error("通知业务方停止执行任务失败", slog.Int64("execution_id", eid))
-		return
+		return err
 	}
+	res, err := h.request(ctx, http.MethodDelete, cfg, eid)
+	if err != nil {
+		return err
+	}
+	if res.Status != StatusSuccess {
+		return errs.ErrStopTaskFailed
+	}
+	return nil
 }
 
-func (h *HttpExecutor) request(method string, cfg HttpCfg, eid int64) (Result, error) {
-	request, err := http.NewRequest(method, cfg.Url, bytes.NewBuffer([]byte(cfg.Body)))
+func (h *HttpExecutor) request(ctx context.Context, method string, cfg HttpCfg, eid int64) (Result, error) {
+	request, err := http.NewRequestWithContext(ctx, method, cfg.Url, bytes.NewBuffer([]byte(cfg.Body)))
 	if err != nil {
 		return Result{}, err
 	}
@@ -149,12 +152,13 @@ func (h *HttpExecutor) request(method string, cfg HttpCfg, eid int64) (Result, e
 	if err != nil {
 		return Result{}, err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return Result{}, errs.ErrRequestFailed
 	}
 	var result Result
 	err = json.NewDecoder(resp.Body).Decode(&result)
-	_ = resp.Body.Close()
+
 	return result, err
 }
 
