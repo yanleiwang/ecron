@@ -116,7 +116,7 @@ func TestPreempt_TaskLeaser_AutoRefresh(t *testing.T) {
 				td.EXPECT().TryPreempt(gomock.Any(), gomock.Any()).Return(t, nil)
 				//td.EXPECT().PreemptTask(gomock.Any(), t, "1-appid").Return(nil)
 				td.EXPECT().RefreshTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(errors.New("UpdateUtime error"))
-				td.EXPECT().ReleaseTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(nil)
+				td.EXPECT().ReleaseTask(gomock.Any(), t, t.Owner).AnyTimes().Return(nil)
 
 				return td
 			},
@@ -136,7 +136,7 @@ func TestPreempt_TaskLeaser_AutoRefresh(t *testing.T) {
 				}
 				td.EXPECT().TryPreempt(gomock.Any(), gomock.Any()).Return(t, nil)
 				td.EXPECT().RefreshTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(context.DeadlineExceeded)
-				td.EXPECT().ReleaseTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(nil)
+				td.EXPECT().ReleaseTask(gomock.Any(), t, t.Owner).AnyTimes().Return(nil)
 
 				return td
 			},
@@ -157,7 +157,7 @@ func TestPreempt_TaskLeaser_AutoRefresh(t *testing.T) {
 				td.EXPECT().TryPreempt(gomock.Any(), gomock.Any()).Times(1).Return(t, nil)
 
 				td.EXPECT().RefreshTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(nil)
-				td.EXPECT().ReleaseTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(nil)
+				td.EXPECT().ReleaseTask(gomock.Any(), t, t.Owner).AnyTimes().Return(nil)
 
 				return td
 			},
@@ -222,7 +222,7 @@ func TestPreempt_TaskLeaser_Release(t *testing.T) {
 				td.EXPECT().TryPreempt(gomock.Any(), gomock.Any()).Return(t, nil)
 
 				td.EXPECT().RefreshTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(nil)
-				td.EXPECT().ReleaseTask(gomock.Any(), t.ID, t.Owner).AnyTimes().Return(nil)
+				td.EXPECT().ReleaseTask(gomock.Any(), t, t.Owner).AnyTimes().Return(nil)
 
 				return td
 			},
@@ -705,8 +705,7 @@ func TestGormTaskRepository_ReleaseTask(t *testing.T) {
 				mockDB, mock, err := sqlmock.New()
 				require.NoError(t, err)
 				//mock.ExpectExec("UPDATE `task_info`").WithArgs(zero.ID, zero.Owner).WillReturnResult(sqlmock.NewResult(1, 1))
-				mock.ExpectExec("UPDATE `task_info`").
-					WithArgs(task.TaskStatusWaiting, sqlmock.AnyArg(), zero.ID, zero.Owner).WillReturnResult(sqlmock.NewResult(1, 1))
+				mock.ExpectExec("UPDATE `task_info`").WillReturnResult(sqlmock.NewResult(1, 1))
 				return mockDB
 			},
 			tid:     zero.ID,
@@ -740,7 +739,8 @@ func TestGormTaskRepository_ReleaseTask(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dao := newGormTaskRepository(db, tc.batchSize, tc.refreshInterval)
-			err = dao.ReleaseTask(context.Background(), tc.tid, tc.owner)
+			ta := task.Task{ID: tc.tid}
+			err = dao.ReleaseTask(context.Background(), ta, tc.owner)
 			if err != nil {
 				assert.Equal(t, tc.wantErr, err)
 				return

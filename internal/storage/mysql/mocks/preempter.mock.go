@@ -69,17 +69,17 @@ func (mr *MocktaskRepositoryMockRecorder) RefreshTask(ctx, tid, owner any) *gomo
 }
 
 // ReleaseTask mocks base method.
-func (m *MocktaskRepository) ReleaseTask(ctx context.Context, tid int64, owner string) error {
+func (m *MocktaskRepository) ReleaseTask(ctx context.Context, t task.Task, owner string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReleaseTask", ctx, tid, owner)
+	ret := m.ctrl.Call(m, "ReleaseTask", ctx, t, owner)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReleaseTask indicates an expected call of ReleaseTask.
-func (mr *MocktaskRepositoryMockRecorder) ReleaseTask(ctx, tid, owner any) *gomock.Call {
+func (mr *MocktaskRepositoryMockRecorder) ReleaseTask(ctx, t, owner any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseTask", reflect.TypeOf((*MocktaskRepository)(nil).ReleaseTask), ctx, tid, owner)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseTask", reflect.TypeOf((*MocktaskRepository)(nil).ReleaseTask), ctx, t, owner)
 }
 
 // TryPreempt mocks base method.
