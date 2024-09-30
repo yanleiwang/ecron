@@ -227,7 +227,7 @@ func (g *gormTaskRepository) ReleaseTask(ctx context.Context, t task.Task, owner
 		Where("id = ? AND owner = ?", t.ID, owner).
 		Updates(map[string]interface{}{
 			"status":         status,
-			"utime":          now,
+			"utime":          now.UnixMilli(),
 			"next_exec_time": next.UnixMilli(),
 		})
 

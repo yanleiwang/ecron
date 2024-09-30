@@ -6,17 +6,16 @@ import (
 )
 
 type Task struct {
-	ID           int64
-	Name         string
-	Type         Type
-	Executor     string
-	Cfg          string
-	CronExp      string
-	Owner        string
-	LastStatus   int8
-	CurExecution *Execution
-	Ctime        time.Time
-	Utime        time.Time
+	ID         int64
+	Name       string
+	Type       Type
+	Executor   string
+	Cfg        string
+	CronExp    string
+	Owner      string
+	LastStatus int8
+	Ctime      time.Time
+	Utime      time.Time
 }
 
 type Type string

@@ -107,10 +107,10 @@ func (m *MockExecutionDAO) EXPECT() *MockExecutionDAOMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockExecutionDAO) Create(ctx context.Context, tid int64) (task.Execution, error) {
+func (m *MockExecutionDAO) Create(ctx context.Context, tid int64) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, tid)
-	ret0, _ := ret[0].(task.Execution)
+	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

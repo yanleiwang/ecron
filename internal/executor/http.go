@@ -40,14 +40,18 @@ func (h *HttpExecutor) Run(ctx context.Context, t task.Task, eid int64) (task.Ex
 	}
 
 	result, err := h.request(ctx, http.MethodPost, cfg, eid)
+	if err != nil {
+		h.logger.Error("发起任务请求失败", slog.Int64("task_id", t.ID),
+			slog.Int64("execution_id", eid), slog.Any("error", err))
+	}
 	if errors.Is(err, errs.ErrRequestTimeout) {
-		h.logger.Error("发起任务请求超时",
-			slog.Int64("execution_id", eid))
+
 		return task.ExecStatusDeadlineExceeded, errs.ErrRequestTimeout
 	}
+	if errors.Is(err, context.Canceled) {
+		return task.ExecStatusCancelled, err
+	}
 	if err != nil {
-		h.logger.Error("发起任务请求超时", slog.Int64("task_id", t.ID),
-			slog.Int64("execution_id", eid), slog.Any("error", err))
 		return task.ExecStatusFailed, errs.ErrRequestFailed
 	}
 

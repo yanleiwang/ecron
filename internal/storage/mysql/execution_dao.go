@@ -33,16 +33,17 @@ func (h *GormExecutionDAO) ToDomain(e Execution) task.Execution {
 	}
 }
 
-func (h *GormExecutionDAO) Create(ctx context.Context, tid int64) (task.Execution, error) {
+func (h *GormExecutionDAO) Create(ctx context.Context, tid int64) (int64, error) {
 	now := time.Now().UnixMilli()
 	exec := Execution{
-		Tid:    tid,
-		Status: uint8(task.ExecStatusRunning),
-		Ctime:  now,
-		Utime:  now,
+		Tid:      tid,
+		Status:   uint8(task.ExecStatusRunning),
+		Progress: 0,
+		Ctime:    now,
+		Utime:    now,
 	}
 	err := h.db.WithContext(ctx).Create(&exec).Error
-	return h.ToDomain(exec), err
+	return exec.ID, err
 }
 
 func (h *GormExecutionDAO) GetLastExecution(ctx context.Context, tid int64) (task.Execution, error) {
