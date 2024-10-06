@@ -110,30 +110,35 @@ func (p *PreemptScheduler) doTaskWithAutoRefresh(ctx context.Context, l preempt.
 	execCtx, execCancel := context.WithTimeout(cancelCtx, timeout)
 	defer execCancel()
 
-	if t.LastStatus == task.TaskStatusRunning {
-		p.exploreLast(execCtx, t, exec)
-	} else {
+	needRun := p.exploreLastExecution(execCtx, t, exec)
+	if needRun {
 		p.doTask(execCtx, t, exec)
 	}
 
 }
 
-func (p *PreemptScheduler) exploreLast(ctx context.Context, t task.Task, exec executor.Executor) {
+func (p *PreemptScheduler) exploreLastExecution(ctx context.Context, t task.Task, exec executor.Executor) bool {
+	if t.LastStatus != task.TaskStatusRunning {
+		return true
+	}
+
 	lastExecution, err := p.executionDAO.GetLastExecution(ctx, t.ID)
 	if err != nil {
-		return
+		return true
 	}
 	if lastExecution.Status != task.ExecStatusRunning && lastExecution.Status != task.ExecStatusUnknown {
-		return
+		return true
 	}
 	eid := lastExecution.ID
 	status, progress, err := p.exploreOnce(ctx, t, exec, eid)
 	if err != nil {
 		p.logger.Error("探查上次执行结果失败", slog.Int64("task_id", t.ID), slog.Int64("execution_id", eid), slog.Any("err", err))
+		_ = p.updateProgressStatus(eid, 0, task.ExecStatusUnknown)
+		return true
 	}
 	if status != task.ExecStatusRunning {
 		_ = p.updateProgressStatus(eid, progress, status)
-		return
+		return true
 	}
 
 	//  调整 执行超时时间 = 任务记录 创建时间 + 最大执行时间
@@ -141,6 +146,7 @@ func (p *PreemptScheduler) exploreLast(ctx context.Context, t task.Task, exec ex
 	nctx, cancel := context.WithDeadline(ctx, expectStopTime)
 	defer cancel()
 	p.explore(nctx, exec, t, eid)
+	return false
 }
 
 func (p *PreemptScheduler) ReleaseTask(l preempt.TaskLeaser, t task.Task) {
